@@ -70,6 +70,12 @@ func (n *Network) inject(msg raft.Message) {
 	if d < 1 {
 		d = 1
 	}
+	if p := n.matrix.ReorderP(now, msg.From, msg.To); p > 0 && n.rng.Float64() < p {
+		// Hold the message back so a later send on the same edge overtakes it.
+		extra := 1 + n.rng.Intn(3)
+		n.note(EvReorder, now, msg, fmt.Sprintf("hold=%d", extra))
+		d += raft.Instant(extra)
+	}
 	n.enqueue(now+d, msg)
 	if n.rng.Float64() < n.matrix.DupP(now, msg.From, msg.To) {
 		n.enqueue(now+d+1, msg.Clone())

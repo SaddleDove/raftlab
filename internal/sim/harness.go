@@ -248,13 +248,10 @@ func RunReadIndexGate(seed uint64, lease raft.Instant) (check.Verdict, []raft.Vi
 	return check.CrossCheck(c.History()), c.mon.Violations(), nil
 }
 
-func RandomFaults(cfg ClusterConfig, rnd *Stream) {
-}
-
 func ApplyRandomFaults(c *Cluster, rnd *Stream, until raft.Instant) {
 	n := c.cfg.N
 	pick := func() raft.NodeID { return raft.NodeID(rnd.Intn(n) + 1) }
-	kind := rnd.Intn(6)
+	kind := rnd.Intn(7)
 	switch kind {
 	case 0:
 		c.net.Matrix().Add(Rule{Kind: FDrop, P: 0.1, Until: until})
@@ -273,6 +270,8 @@ func ApplyRandomFaults(c *Cluster, rnd *Stream, until raft.Instant) {
 		c.Crash(pick())
 	case 4:
 		c.net.Matrix().Add(Rule{Kind: FDup, P: 0.05, Until: until})
+	case 5:
+		c.net.Matrix().Add(Rule{Kind: FReorder, P: 0.1, Until: until})
 	default:
 		c.net.Matrix().Add(Rule{Kind: FDelayConst, Delay: 3, Until: until})
 	}

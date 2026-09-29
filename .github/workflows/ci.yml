@@ -5,18 +5,44 @@ on:
   pull_request:
 
 jobs:
-  test:
+  verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version: "1.22"
+
+      - name: gofmt
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "$unformatted"
+            exit 1
+          fi
+
       - name: import graph
         run: go run ./cmd/importcheck
+
       - name: vet
         run: go vet ./...
+
       - name: test
         run: go test ./...
-      - name: gate-m0
-        run: go run ./cmd/raftlab gate-m0 -seeds 3 -until 200
+
+      - name: test with race detector
+        run: go test -race ./...
+
+      - name: gates
+        run: |
+          for g in gate-m0 gate-m1 gate-m2 gate-m3 gate-m4 gate-m5 gate-m6 gate-m7 gate-m8; do
+            echo "::group::$g"
+            go run ./cmd/raftlab "$g"
+            echo "::endgroup::"
+          done
+
+      - name: gate evidence is current
+        run: |
+          # docs/PROGRESS.md is a snapshot and carries a timestamp, so this only
+          # checks that it is regenerable, not that it byte-matches.
+          sh scripts/gates.sh

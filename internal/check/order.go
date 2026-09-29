@@ -5,6 +5,7 @@ import (
 	"sort"
 )
 
+// kvState is the reference state the checkers linearize against: a plain map.
 type kvState map[string]string
 
 func cloneState(s kvState) kvState {
@@ -15,6 +16,11 @@ func cloneState(s kvState) kvState {
 	return out
 }
 
+// applyOp returns the state after op and whether op is permitted from s.
+// Both checkers share this model on purpose: they are two search strategies
+// over one definition of correct KV behaviour, so a wrong model is invisible
+// to both of them. The cross-check buys agreement between searches, not
+// independence from the model.
 func applyOp(s kvState, op Op) (kvState, bool, string) {
 	ns := cloneState(s)
 	switch op.Kind {
@@ -45,16 +51,14 @@ func applyOp(s kvState, op Op) (kvState, bool, string) {
 	}
 }
 
-func WingGongKV(h History) Verdict {
-	ops := make([]Op, 0, len(h.Ops))
-	for _, op := range h.Ops {
-		if op.ReturnAt == 0 && !op.Ok {
-			continue
-		}
-		ops = append(ops, op)
-	}
+// OrderKV decides linearizability by backtracking over the orders that respect
+// real-time precedence: an operation that returned before another was called
+// must be placed first. The search is complete, but unpicked-prefix pruning is
+// a heuristic, so a large history can be expensive.
+func OrderKV(h History) Verdict {
+	ops := usableOps(h)
 	if len(ops) == 0 {
-		return Verdict{Linearizable: true, Checker: "winggong"}
+		return Verdict{Linearizable: true, Checker: "order"}
 	}
 	sort.SliceStable(ops, func(i, j int) bool {
 		if ops[i].CallAt != ops[j].CallAt {
@@ -63,9 +67,9 @@ func WingGongKV(h History) Verdict {
 		return ops[i].Seq < ops[j].Seq
 	})
 	if search(ops, 0, kvState{}, make([]bool, len(ops))) {
-		return Verdict{Linearizable: true, Checker: "winggong"}
+		return Verdict{Linearizable: true, Checker: "order"}
 	}
-	return Verdict{Linearizable: false, Checker: "winggong", Detail: "no linearization"}
+	return Verdict{Linearizable: false, Checker: "order", Detail: "no linearization"}
 }
 
 func search(ops []Op, done int, st kvState, used []bool) bool {
@@ -92,6 +96,8 @@ func search(ops []Op, done int, st kvState, used []bool) bool {
 	return false
 }
 
+// minimal reports whether op i can be placed next: nothing that must precede it
+// is still unplaced.
 func minimal(ops []Op, used []bool, i int) bool {
 	for j, other := range ops {
 		if used[j] || j == i {

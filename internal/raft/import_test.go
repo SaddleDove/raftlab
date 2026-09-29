@@ -17,6 +17,7 @@ func TestNoForbiddenImports(t *testing.T) {
 		"raftlab/internal/check",
 		"raftlab/internal/unsafe",
 		"raftlab/internal/transport",
+		"raftlab/internal/storage",
 	}
 	fset := token.NewFileSet()
 	err := filepath.WalkDir(".", func(path string, d fs.DirEntry, err error) error {
@@ -31,14 +32,11 @@ func TestNoForbiddenImports(t *testing.T) {
 			return err
 		}
 		for _, im := range f.Imports {
-			path := strings.Trim(im.Path.Value, `"`)
+			importPath := strings.Trim(im.Path.Value, `"`)
 			for _, bad := range forbidden {
-				if path == bad || strings.HasPrefix(path, bad+"/") {
-					t.Errorf("%s imports forbidden package %s", path, bad)
+				if importPath == bad || strings.HasPrefix(importPath, bad+"/") {
+					t.Errorf("%s imports forbidden package %s", path, importPath)
 				}
-			}
-			if strings.Contains(path, "time") && path == "time" {
-				t.Errorf("%s imports time", f.Name.Name)
 			}
 		}
 		return nil

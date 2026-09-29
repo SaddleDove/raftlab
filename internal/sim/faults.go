@@ -62,6 +62,52 @@ func (k FaultKind) String() string {
 	}
 }
 
+// DeclaredFaults is every fault kind the type system knows about.
+func DeclaredFaults() []FaultKind {
+	return []FaultKind{
+		FDelayConst, FDelayUniform, FDelayHeavy, FDrop, FDup, FReorder,
+		FBitFlip, FPartitionSym, FPartitionAsym, FCrashStop, FCrashRestart,
+		FTornWrite, FSlowDisk, FElectionStorm, FClockSkew, FStaleRejoin,
+	}
+}
+
+// WiredFaults is the subset Matrix actually honours. DeclaredFaults is the
+// roadmap; this is the contract. Anything listed in DeclaredFaults but not here
+// is an enum value that no rule can trigger, and docs must not claim it.
+func WiredFaults() []FaultKind {
+	return []FaultKind{
+		FDelayConst, FDelayUniform, FDelayHeavy, FDrop, FDup, FReorder,
+		FPartitionSym, FPartitionAsym, FCrashStop, FCrashRestart,
+	}
+}
+
+// UnwiredFaults is DeclaredFaults minus WiredFaults.
+func UnwiredFaults() []FaultKind {
+	wired := map[FaultKind]bool{}
+	for _, k := range WiredFaults() {
+		wired[k] = true
+	}
+	var out []FaultKind
+	for _, k := range DeclaredFaults() {
+		if !wired[k] {
+			out = append(out, k)
+		}
+	}
+	return out
+}
+
+// ReorderP is the probability that a delivered message is held back long enough
+// to arrive after a message sent later on the same edge.
+func (m *Matrix) ReorderP(now raft.Instant, from, to raft.NodeID) float64 {
+	p := 0.0
+	for _, r := range m.Active(now) {
+		if r.Kind == FReorder && matchEdge(r, from, to) && r.P > p {
+			p = r.P
+		}
+	}
+	return p
+}
+
 type Rule struct {
 	Kind   FaultKind
 	From   raft.NodeID

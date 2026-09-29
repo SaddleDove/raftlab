@@ -298,7 +298,7 @@ func gateM7(args []string) int {
 	if n := c.Node(c.Leader()); n != nil {
 		joint = n.Conf().InJoint()
 	}
-	fmt.Printf("voters=%v joint=%v lin=%v violations=%d\n", c.ConfVoters(), joint, v.Linearizable, len(viol))
+	fmt.Printf("voters=%v joint=%v lin=%v checker=%s violations=%d\n", c.ConfVoters(), joint, v.Linearizable, v.Checker, len(viol))
 	if len(viol) > 0 || !v.Linearizable || joint {
 		fmt.Println("M7 GATE FAIL")
 		return 1
